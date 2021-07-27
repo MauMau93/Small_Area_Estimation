@@ -328,7 +328,9 @@ EmpiricalMSEPre<-data.frame(EmpiricalMSEpropPre,EmpiricalMSEgapPre,EmpiricalMSEp
 write.table(EmpiricalMSEPre,"EmpiricalD80MC10000_Modified.txt",row.names=F)
 
 #############################################################################################
-#From now on, my own code.
+#############################################################################################
+
+# Now, it´s time to produce our new Empirical Best Estimator under a Fay-Harriot Model
 
 # Plot both the Estimations of the EBs and ELL and MSE of both
 
