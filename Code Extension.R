@@ -290,7 +290,7 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
   MSEpropMC.ELL[,i]<-sumSqprop/L-propfin.ELL^2
   MSEgapMC.ELL[,i]<-sumSqgap/L-gapfin.ELL^2
   
-  data.frame(prop,propfin,propfin.ELL,gap,gapfin,gapfin.ELL)
+  #data.frame(prop,propfin,propfin.ELL,gap,gapfin,gapfin.ELL)
   
   # I save predictor values for each Monte Carlo simulation
   # in the columns of a matrix
@@ -329,6 +329,26 @@ write.table(EmpiricalMSEPre,"EmpiricalD80MC10000_Modified.txt",row.names=F)
 
 #############################################################################################
 #From now on, my own code.
+
+# Plot both the Estimations of the EBs and ELL and MSE of both
+
+propfinMC[,i]<-propfin
+gapfinMC[,i]<-gapfin
+propfinMC.ELL[,i]<-propfin.ELL
+gapfinMC.ELL[,i]<-gapfin.ELL
+
+Empirical_Estimators<-data.frame(propfin,gapfin,propfin.ELL,gapfin.ELL)
+write.table(Empirical_Estimators,"Empirical_Estimates.txt",row.names=F)
+
+# Estimating Bias
+
+plot(Empirical_Estimators$propfin, type = "n", ylab = "Estimate", ylim = c(-0.1, 0.1),
+     xlab = "area (sorted by decreasing sample size)", cex.axis = 1.5,
+     cex.lab = 1.5)
+points(Empirical_Estimators$propfin, type = "b", col = 1, lwd = 2, pch = 1, lty = 1)
+points(Empirical_Estimators$propfin.ELL, type = "b", col = 4, lwd = 2, pch = 4, lty = 2)
+legend("top", legend = c("Census EB", " ELL Estimator"), ncol = 2, col = c(1, 4), lwd = 2,
+       pch = c(1, 4), lty = c(1, 2), cex = 1.3)
 # First, I need to replicate the survey artificially to create a Census. I consider that all of the observations have the same weight in the sample: ni/Ni
 
 weights <- Nd/nd
@@ -354,53 +374,103 @@ X_o_aug<-read.table("AuxVarAug_out.txt",header=TRUE)
 X_o_aug$domain_out <- as.factor(X_o_aug$domain_out)
 
 # Calculating  Artifitial Census EB with sae package
-package(sae)
+library(sae)
 area_codes <- unique(area)
 area_codes <- as.factor(area_codes)
+
+# Function for indicators: Poverty Incidence and Poverty Gap
+
+# Alpha = 0
 povertyincidence <- function(y) {
-  result <- mean(y < 20.256) 
+  result <- mean(y < z) 
+  return (result)}
+
+# Alpha = 1
+povertygap <- function(y) {
+  result <- mean((y<z) * (z-y) / z)
   return (result)}
 
 
-ArtCen_EB <- ebBHF(Es ~ x1s + x2s, dom = area,
+
+# Artificial EB por Poverty Incidence
+ArtCen_EB_incidence <- ebBHF(Es ~ x1s + x2s, dom = area,
              selectdom = area_codes, Xnonsample = X_o_aug, MC = 50,
              constant = 0, indicator = povertyincidence)
+# Artificial EB for gap
+ArtCen_EB_gap <- ebBHF(Es ~ x1s + x2s, dom = area,
+                   selectdom = area_codes, Xnonsample = X_o_aug, MC = 50,
+                   constant = 0, indicator = povertygap)
 
-ArtCen_EB$fit$summary
+ArtCen_EB_incidence$fit$summary
+ArtCen_EB_gap$fit$summary
 
-plot(ArtCen_EB$fit$residuals, xlab = "Index", ylab = "Residuals", cex.axis = 1.5,
+
+# Residuals for Artificial EB - incidence
+plot(ArtCen_EB_incidence$fit$residuals, xlab = "Index", ylab = "Residuals", cex.axis = 1.5,
     cex.lab = 1.5, ylim = c(-2, 2), col = 4)
 abline(h = 0)
 
-hist(ArtCen_EB$fit$residuals, prob = TRUE, xlab = "Residuals", ylab = "", main = "",
+hist(ArtCen_EB_incidence$fit$residuals, prob = TRUE, xlab = "Residuals", ylab = "", main = "",
        cex.axis = 1.5, cex.lab = 1.5, xlim = c(-2, 2), ylim = c(0, 1))
+
+# Residuals for Artificial EB - gap
+
+plot(ArtCen_EB_gap$fit$residuals, xlab = "Index", ylab = "Residuals", cex.axis = 1.5,
+     cex.lab = 1.5, ylim = c(-2, 2), col = 4)
+abline(h = 0)
+
+hist(ArtCen_EB_gap$fit$residuals, prob = TRUE, xlab = "Residuals", ylab = "", main = "",
+     cex.axis = 1.5, cex.lab = 1.5, xlim = c(-2, 2), ylim = c(0, 1))
+
 
 # Calculating the MSE
 
-pbmse.EB <- pbmseebBHF(Es ~ x1s + x2s, dom = area,
+# for Incidence
+pbmse.EB_incidence <- pbmseebBHF(Es ~ x1s + x2s, dom = area,
                        selectdom = area_codes, Xnonsample = X_o_aug,
                         B = 200, MC = 50, constant = 3500,
                         indicator = povertyincidence)
 
+# for gap
+pbmse.EB_gap <- pbmseebBHF(Es ~ x1s + x2s, dom = area,
+                       selectdom = area_codes, Xnonsample = X_o_aug,
+                       B = 200, MC = 50, constant = 3500,
+                       indicator = povertygap)
+
 # Calculating the CVs
 
-pbcv.EB <- 100 * sqrt(pbmse.EB$mse$mse) / abs(pbmse.EB$est$eb$eb)
+pbcv.EB_inc <- 100 * sqrt(pbmse.EB_incidence$mse$mse) / abs(pbmse.EB$est$eb$eb)
+pbcv.EB_gap <- 100 * sqrt(pbmse.EB_gap$mse$mse) / abs(pbmse.EB$est$eb$eb)
+
 
 # Results with this new ArtCen_EB
 
-results.EB <- data.frame(Domain = pbmse.EB$est$eb$domain,
-                          SampleSize = pbmse.EB$est$eb$sampsize,
-                          EB = pbmse.EB$est$eb$eb, cv.EB = pbcv.EB, MSE.EB = pbmse.EB$mse$mse)
-
+# Results for Incidence
+results.EB_incidence <- data.frame(Domain = pbmse.EB_incidence$est$eb$domain,
+                          SampleSize = pbmse.EB_incidence$est$eb$sampsize,
+                          EB = pbmse.EB_incidence$est$eb$eb, cv.EB = pbcv.EB_inc, MSE.EB = pbmse.EB_incidence$mse$mse)
+# Results for Gap
+results.EB_gap <- data.frame(Domain = pbmse.EB_gap$est$eb$domain,
+                         SampleSize = pbmse.EB_gap$est$eb$sampsize,
+                         EB = pbmse.EB_gap$est$eb$eb, cv.EB = pbcv.EB_gap, MSE.EB = pbmse.EB_gap$mse$mse)
 
 # Building the New Fay-Harriot Model
 
-New_EB <- eblupFH(formula = ArtCen_EB$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="REML",MAXITER = 100, PRECISION = 0.0001)
-New_EBmse <- mseFH(formula = ArtCen_EB$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="REML",MAXITER = 100, PRECISION = 0.0001)
-cv.FH <- 100 * sqrt(New_EBmse$mse) / New_EBmse$est$eblup
+# For Poverty Incidence Indicator
+New_EB_inc <- eblupFH(formula = ArtCen_EB_incidence$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="ML")
+New_EBmse_inc <- mseFH(formula = ArtCen_EB_incidence$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+cv.FH_inc <- 100 * sqrt(New_EBmse_inc$mse) / New_EBmse$est$eblup
 
-results <- data.frame(Area = area_codes, DIR = ArtCen_EB$eb$eb ,
-                       cv.DIR = pbcv.EB, eblup.FH = New_EBmse$est$eblup, cv.FH)
+results_inc <- data.frame(Area = area_codes, DIR = ArtCen_EB_incidence$eb$eb ,
+                       cv.DIR = pbcv.EB_inc, eblup.FH = New_EBmse_inc$est$eblup, cv.FH_inc)
+
+# For Poverty Gap Indicator
+New_EB_gap <- eblupFH(formula = ArtCen_EB_gap$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML")
+New_EBmse_gap <- mseFH(formula = ArtCen_EB_gap$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+cv.FH_gap <- 100 * sqrt(New_EBmse_gap$mse) / New_EBmse_gap$est$eblup
+
+results_gap <- data.frame(Area = area_codes, DIR = ArtCen_EB_gap$eb$eb ,
+                      cv.DIR = pbcv.EB_gap, eblup.FH = New_EBmse_gap$est$eblup, cv.FH_gap)
 
 # Ploting
 
@@ -420,15 +490,30 @@ results <- data.frame(Area = area_codes, DIR = ArtCen_EB$eb$eb ,
  legend("top", legend = c("Direct", "EBLUP FH"), ncol = 2, col = c(1, 4), lwd = 2,
           pch = c(1, 4), lty = c(1, 2), cex = 1.3)
  
- # Plot for the mse: Census EB, new eblupFH
- New_EB_mse_augmented <- New_EBmse$mse*10000
- CensusEB_mse_augmented<- EmpiricalMSEpropPre*10000
- plot(New_EBmse$mse, type = "n", ylab = "CV", ylim = c(0, 30),
+ # Plot for the mse: Census EB, new eblupFH (x10e4) for poverty incidence
+ New_EB_mse_augmented_inc <- New_EBmse_inc$mse*10000
+ CensusEB_mse_augmented_inc<- EmpiricalMSEpropPre*10000
+ ArtCen_EB_mse_aug_inc <- pbmse.EB_incidence$mse$mse*10000
+ plot(New_EB_mse_augmented, type = "n", ylab = "MSE", ylim = c(0, 3),
       xlab = "area", cex.axis = 1.5,
       cex.lab = 1.5)
  #points(ArtCen_EB$eb$eb, type = "b", col = 1, lwd = 2, pch = 1, lty = 1)
- points(New_EB_mse_augmented, type = "b", col = 4, lwd = 2, pch = 4, lty = 2)
- points(CensusEB_mse_augmented, type = "b", col = 2, lwd = 2, pch = 2, lty = 3)
- legend("top", legend = c( "EBLUPFH_mse","Census EB"), ncol = 2, col = c(1, 4), lwd = 2,
-        pch = c(1, 4), lty = c(1, 2), cex = 1.3)
+ points(New_EB_mse_augmented, type = "b", col = "red", lwd = 2, pch = 1, lty = 2)
+ #points(CensusEB_mse_augmented, type = "b", col = 2, lwd = 2, pch = 2, lty = 3)
+ points(ArtCen_EB_mse_aug, type = "b", col = "blue", lwd = 2, pch = 4, lty = 3)
+ legend("top", legend = c( "New EB","Art Cen EB"), lwd = 2,
+        pch = c(1, 4), lty = c(2, 3), cex = 0.8, col=c("red", "blue"))
 
+ # Plot for the mse: Census EB, new EB-FH (x10e4) for poverty gap
+ New_EB_mse_augmented_gap <- New_EBmse_gap$mse*10000
+ CensusEB_mse_augmented_gap<- EmpiricalMSEgapPre*10000
+ ArtCen_EB_mse_aug_gap <- pbmse.EB_gap$mse$mse*10000
+ plot(New_EB_mse_augmented_gap, type = "n", ylab = "MSE", ylim = c(0, 3),
+      xlab = "area", cex.axis = 1.5,
+      cex.lab = 1.5)
+ #points(ArtCen_EB$eb$eb, type = "b", col = 1, lwd = 2, pch = 1, lty = 1)
+ points(New_EB_mse_augmented_gap, type = "b", col = "red", lwd = 2, pch = 1, lty = 2)
+ #points(CensusEB_mse_augmented, type = "b", col = 2, lwd = 2, pch = 2, lty = 3)
+ points(CensusEB_mse_augmented_gap, type = "b", col = "blue", lwd = 2, pch = 4, lty = 3)
+ legend("top", legend = c( "New EB","Census EB"), lwd = 2,
+        pch = c(1, 4), lty = c(2, 3), cex = 0.8, col=c("red", "blue"))
