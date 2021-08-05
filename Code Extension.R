@@ -395,11 +395,11 @@ povertygap <- function(y) {
 
 
 # Artificial EB por Poverty Incidence
-ArtCen_EB_incidence <- ebBHF(Es ~ x1s + x2s, dom = area,
+#ArtCen_EB_incidence <- ebBHF(Es ~ x1s + x2s, dom = area,
              selectdom = area_codes, Xnonsample = X_o_aug, MC = 50,
              constant = 0, indicator = povertyincidence)
 # Artificial EB for gap
-ArtCen_EB_gap <- ebBHF(Es ~ x1s + x2s, dom = area,
+#ArtCen_EB_gap <- ebBHF(Es ~ x1s + x2s, dom = area,
                    selectdom = area_codes, Xnonsample = X_o_aug, MC = 50,
                    constant = 0, indicator = povertygap)
 
@@ -459,16 +459,16 @@ results.EB_gap <- data.frame(Domain = pbmse.EB_gap$est$eb$domain,
 # Building the New Fay-Harriot Model
 
 # For Poverty Incidence Indicator
-New_EB_inc <- eblupFH(formula = ArtCen_EB_incidence$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="ML")
-New_EBmse_inc <- mseFH(formula = ArtCen_EB_incidence$eb$eb ~ propfin  , vardir = pbmse.EB$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
-cv.FH_inc <- 100 * sqrt(New_EBmse_inc$mse) / New_EBmse$est$eblup
+New_EB_inc <- eblupFH(formula = pbmse.EB_incidence$est$eb$eb ~ propfin  , vardir = pbmse.EB_incidence$mse$mse, method="ML")
+New_EBmse_inc <- mseFH(formula = pbmse.EB_incidence$est$eb$eb ~ propfin  , vardir = pbmse.EB_incidence$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+cv.FH_inc <- 100 * sqrt(New_EBmse_inc$mse) / New_EBmse_inc$est$eblup
 
 results_inc <- data.frame(Area = area_codes, DIR = ArtCen_EB_incidence$eb$eb ,
                        cv.DIR = pbcv.EB_inc, eblup.FH = New_EBmse_inc$est$eblup, cv.FH_inc)
 
 # For Poverty Gap Indicator
-New_EB_gap <- eblupFH(formula = ArtCen_EB_gap$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML")
-New_EBmse_gap <- mseFH(formula = ArtCen_EB_gap$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+New_EB_gap <- eblupFH(formula = pbmse.EB_gap$est$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML")
+New_EBmse_gap <- mseFH(formula = pbmse.EB_gap$est$eb$eb ~ propfin  , vardir = pbmse.EB_gap$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
 cv.FH_gap <- 100 * sqrt(New_EBmse_gap$mse) / New_EBmse_gap$est$eblup
 
 results_gap <- data.frame(Area = area_codes, DIR = ArtCen_EB_gap$eb$eb ,
