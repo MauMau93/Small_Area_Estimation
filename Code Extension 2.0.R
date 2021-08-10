@@ -100,7 +100,7 @@ write.table(data.frame(X_o_aug),"AuxVarAug_out.txt")
 X_o_aug<-read.table("AuxVarAug_out.txt",header=TRUE)
 X_o_aug$domain_out <- as.factor(X_o_aug$domain_out)
 
-# Calculating  Artifitial Census EB with sae package
+# For Calculating Artifitial Census EB with sae package
 library(sae)
 area_codes <- unique(area)
 area_codes <- as.factor(area_codes)
@@ -117,7 +117,90 @@ povertygap <- function(y) {
   result <- mean((y<z) * (z-y) / z)
   return (result)}
 
+# Parametric Bootrstrapin for MSE calculation
 
+ParBootstrap <- {
+  B<-50
+  
+  MSEpropsum.B<-rep(0,D)
+  MSEgapsum.B<-rep(0,D)
+  
+  for (b in 1:B){   ### Start of bootstrap cycle
+    
+    #print(cbind("Bootstrap iteration",b,"Monte Carlo iteration",i))
+    
+    y.B<-NULL
+    ys.B<-NULL
+    ys.B2<-NULL
+    prop.B<-rep(0,D)
+    gap.B<-rep(0,D)
+    
+    sumnd<-0
+    sumrd<-0
+    sumNd<-0
+    
+    for (d in 1:D){
+      
+      # Generation of population values of y from the fitted model
+      # Parametric bootstrap for MSE estimation
+      
+      ed.B<-rnorm(Nd[d],0,sqrt(sigmae2est))
+      ud.B<-rnorm(1,0,sqrt(sigmau2est))
+      
+      Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
+      mud.B<-Xd%*%matrix(betaest,nr=p,nc=1)
+      yd.B<-mud.B+ud.B+ed.B
+      y.B<-c(y.B,yd.B)
+      
+      # True poverty measures for the bootstrap population
+      
+      Ed.B<-exp(yd.B)
+      prop.B[d]<-mean(Ed.B<z)
+      gap.B[d]<-mean((Ed.B<z)*(z-Ed.B)/z)
+      
+      # Generate bootstrap sample values
+      
+      Xsd<-Xs[(sumnd+1):(sumnd+nd[d]),]
+      musd.B<-Xsd%*%matrix(betaest,nr=p,nc=1)
+      esd.B<-rnorm(nd[d],0,sqrt(sigmae2est))
+      ysd.B<-musd.B+ud.B+esd.B
+      ys.B<-c(ys.B,ysd.B)
+      
+      sumnd<-sumnd+nd[d]
+      sumrd<-sumrd+rd[d]
+      sumNd<-sumNd+Nd[d]
+      
+    }
+    
+    E.B<-exp(y.B)
+    
+    # Bootstrap sample data
+    
+    Es.B<-exp(ys.B)
+    
+    # Fitting of nested-error model to bootstrap sample data
+    
+    fit.B<-lme(ys.B~x1s+x2s,random=~1|area,method="REML")
+    betaest.B<-fixed.effects(fit.B)
+    upred.B<-random.effects(fit.B)
+    sigmae2est.B<-fit.B$sigma^2    # Varianza residual
+    sigmau2est.B<-as.numeric(VarCorr(fit.B)[1,1]) # Matriz de covarianzas de las componentes aleatorias del modelo
+    
+    MSEpropsum.B<-MSEpropsum.B+(propfin.B-prop.B)^2
+    MSEgapsum.B<-MSEgapsum.B+(gapfin.B-gap.B)^2
+    
+  }
+}
+  
+  # Calculation of MSE
+
+  MSEpropMC.B[,i]<-MSEpropsum.B/B
+  MSEgapMC.B[,i]<-MSEgapsum.B/B
+  
+  for (d in 1:D){
+    MSEpropMC.Br[d]<-mean(MSEpropMC.B[d,])
+    MSEgapMC.Br[d]<-mean(MSEgapMC.B[d,])
+  }
 #########################################
 # Monte Carlo simulations
 #########################################
@@ -276,6 +359,7 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
   EBpropPred <- rep(0,D)
   EBgapPred <- rep(0,D)
   
+  
   for (ell in 1:L){   ### Start of generations
     
     sumNd<-0
@@ -330,7 +414,7 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
       # for Incidence
       pbmse.EB_incidence <- pbmseebBHF(Es ~ x1s + x2s, dom = area,
                                        selectdom = area_codes, Xnonsample = X_o_aug,
-                                       B = 2, MC = 1,
+                                       B = 200, MC = 1,
                                        indicator = povertyincidence)
       
       propsum.ART[d] <- propsum.ART[d] + pbmse.EB_incidence$est$eb$eb[[d]]      
@@ -338,27 +422,28 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
       # for gap
       pbmse.EB_gap <- pbmseebBHF(Es ~ x1s + x2s, dom = area,
                                  selectdom = area_codes, Xnonsample = X_o_aug,
-                                 B = 2, MC = 1,
+                                 B = 200, MC = 1,
                                  indicator = povertygap)
       
       gapsum.ART[d] <- gapsum.ART[d]+ pbmse.EB_gap$est$eb$eb[[d]]
       
-      # New Fay-Harrio Model
-      
-      New_EB_inc <- eblupFH(formula = pbmse.EB_incidence$est$eb$eb ~ EBpropPred  , vardir = pbmse.EB_incidence$mse$mse, method="ML")
-      New_EBmse_inc <- mseFH(formula = pbmse.EB_incidence$est$eb$eb ~ EBpropPred  , vardir = pbmse.EB_incidence$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
-      
-      New_EB_gap <- eblupFH(formula = pbmse.EB_gap$est$eb$eb ~ EBgapPred  , vardir = pbmse.EB_gap$mse$mse, method="ML")
-      New_EBmse_gap <- mseFH(formula = pbmse.EB_gap$est$eb$eb ~ EBgapPred  , vardir = pbmse.EB_gap$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
-      
-      
-      propsum.New[d] <- propsum.New[d] + New_EB_inc$eblup[[d]]
-      gapsum.New[d] <- gapsum.New[d] + New_EB_gap$eblup[[d]]
-      
-  
-      
       
     }
+    
+    #New Fay-Harrio Model
+    
+    New_EB_inc <- eblupFH(formula = pbmse.EB_incidence$est$eb$eb ~ EBpropPred  , vardir = pbmse.EB_incidence$mse$mse, method="ML")
+    New_EBmse_inc <- mseFH(formula = pbmse.EB_incidence$est$eb$eb ~ EBpropPred  , vardir = pbmse.EB_incidence$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+    
+    New_EB_gap <- eblupFH(formula = pbmse.EB_gap$est$eb$eb ~ EBgapPred  , vardir = pbmse.EB_gap$mse$mse, method="ML")
+    New_EBmse_gap <- mseFH(formula = pbmse.EB_gap$est$eb$eb ~ EBgapPred  , vardir = pbmse.EB_gap$mse$mse, method="ML",MAXITER = 100, PRECISION = 0.0001)
+    
+    
+    propsum.New[d] <- propsum.New[d] + New_EB_inc$eblup[[d]]
+    gapsum.New[d] <- gapsum.New[d] + New_EB_gap$eblup[[d]]
+    
+    
+    
     
   }  # End of generations
   
@@ -425,17 +510,19 @@ for (d in 1:D){
   EmpiricalMSEgapPre.ELL[d]<-mean((gapfinMC.ELL[d,]-gapMC[d,])^2)
   MSEpropMCr.ELL[d]<-mean(MSEpropMC.ELL[d,])
   MSEgapMCr.ELL[d]<-mean(MSEgapMC.ELL[d,])
-  EmpiricalMSEpropPRE.ART[d]<-mean((propfinMC.Art[d,]-propMC[d,])^2)
-  EmpiricalMSEgapPre.ART[d]<-mean((gapfinMC.Art[d,]-gapMC[d,])^2)
+  EmpiricalMSEpropPRE.Art[d]<-mean((propfinMC.Art[d,]-propMC[d,])^2)
+  EmpiricalMSEgapPre.Art[d]<-mean((gapfinMC.Art[d,]-gapMC[d,])^2)
   EmpiricalMSEpropPre.New[d]<-mean((propfinMC.New[d,]-propMC[d,])^2)
   EmpiricalMSEgapPre.New[d]<-mean((gapfinMC.New[d,]-gapMC[d,])^2)
 }
 
-EmpiricalMSEPre<-data.frame(EmpiricalMSEpropPre,EmpiricalMSEgapPre,EmpiricalMSEpropPre.ELL,EmpiricalMSEgapPre.ELL,MSEpropMCr.ELL,MSEgapMCr.ELL,EmpiricalMSEpropPRE.ART,EmpiricalMSEgapPre.ART,EmpiricalMSEpropPre.New,EmpiricalMSEgapPre.New)
+EmpiricalMSEPre<-data.frame(EmpiricalMSEpropPre,EmpiricalMSEgapPre,EmpiricalMSEpropPre.ELL,EmpiricalMSEgapPre.ELL,MSEpropMCr.ELL,MSEgapMCr.ELL,EmpiricalMSEpropPRE.Art,EmpiricalMSEgapPre.Art,EmpiricalMSEpropPre.New,EmpiricalMSEgapPre.New)
 write.table(EmpiricalMSEPre,"EmpiricalD80MC10000_Modified.txt",row.names=F)
 
+Empirical <- data.frame(EmpiricalMSEgapPre,EmpiricalMSEgapPre.New)
+Empirical
+
 #############################################################################################
-#From now on, my own code.
 
 #*** The Monte Carlo (MC) simulation has been closed above, so this code is using ONLY the data generated in the last MC simulation
 #*** i below will be equal to nMC
@@ -449,6 +536,7 @@ gapfinMC.ELL[,i]<-gapfin.ELL
 
 Empirical_Estimators<-data.frame(propfin,gapfin,propfin.ELL,gapfin.ELL)
 write.table(Empirical_Estimators,"Empirical_Estimates.txt",row.names=F)
+
 
 # Estimating Bias
 
@@ -587,10 +675,10 @@ legend("top", legend = c( "New EB","Art Cen EB"), lwd = 2,
        pch = c(1, 4), lty = c(2, 3), cex = 0.8, col=c("red", "blue"))
 
 # Plot for the mse: Census EB, new EB-FH (x10e4) for poverty gap
-New_EB_mse_augmented_gap <- New_EBmse_gap$mse*10000
+New_EB_mse_augmented_gap <- EmpiricalMSEgapPre.New*10000
 CensusEB_mse_augmented_gap<- EmpiricalMSEgapPre*10000
-ArtCen_EB_mse_aug_gap <- pbmse.EB_gap$mse$mse*10000
-plot(New_EB_mse_augmented_gap, type = "n", ylab = "MSE", ylim = c(0, 3),
+#ArtCen_EB_mse_aug_gap <- pbmse.EB_gap$mse$mse*10000
+plot(New_EB_mse_augmented_gap, type = "n", ylab = "MSE", ylim = c(0, 100),
      xlab = "area", cex.axis = 1.5,
      cex.lab = 1.5)
 #points(ArtCen_EB$eb$eb, type = "b", col = 1, lwd = 2, pch = 1, lty = 1)
