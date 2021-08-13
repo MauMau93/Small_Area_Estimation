@@ -151,7 +151,7 @@ z<-12    # Poverty line: It is approximately 0.6 Median(E) for the whole populat
 # Monte Carlo iterations
 
 #nMC<-500
-nMC<-10
+nMC<-100
 
 # Initialization of matrices that will contain poverty proportions and gaps
 # Each column contains the D area quantities for each Monte Carlo simulation
