@@ -117,90 +117,6 @@ povertygap <- function(y) {
   result <- mean((y<z) * (z-y) / z)
   return (result)}
 
-# Parametric Bootrstrapin for MSE calculation
-
-ParBootstrap <- {
-  B<-50
-  
-  MSEpropsum.B<-rep(0,D)
-  MSEgapsum.B<-rep(0,D)
-  
-  for (b in 1:B){   ### Start of bootstrap cycle
-    
-    #print(cbind("Bootstrap iteration",b,"Monte Carlo iteration",i))
-    
-    y.B<-NULL
-    ys.B<-NULL
-    ys.B2<-NULL
-    prop.B<-rep(0,D)
-    gap.B<-rep(0,D)
-    
-    sumnd<-0
-    sumrd<-0
-    sumNd<-0
-    
-    for (d in 1:D){
-      
-      # Generation of population values of y from the fitted model
-      # Parametric bootstrap for MSE estimation
-      
-      ed.B<-rnorm(Nd[d],0,sqrt(sigmae2est))
-      ud.B<-rnorm(1,0,sqrt(sigmau2est))
-      
-      Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
-      mud.B<-Xd%*%matrix(betaest,nr=p,nc=1)
-      yd.B<-mud.B+ud.B+ed.B
-      y.B<-c(y.B,yd.B)
-      
-      # True poverty measures for the bootstrap population
-      
-      Ed.B<-exp(yd.B)
-      prop.B[d]<-mean(Ed.B<z)
-      gap.B[d]<-mean((Ed.B<z)*(z-Ed.B)/z)
-      
-      # Generate bootstrap sample values
-      
-      Xsd<-Xs[(sumnd+1):(sumnd+nd[d]),]
-      musd.B<-Xsd%*%matrix(betaest,nr=p,nc=1)
-      esd.B<-rnorm(nd[d],0,sqrt(sigmae2est))
-      ysd.B<-musd.B+ud.B+esd.B
-      ys.B<-c(ys.B,ysd.B)
-      
-      sumnd<-sumnd+nd[d]
-      sumrd<-sumrd+rd[d]
-      sumNd<-sumNd+Nd[d]
-      
-    }
-    
-    E.B<-exp(y.B)
-    
-    # Bootstrap sample data
-    
-    Es.B<-exp(ys.B)
-    
-    # Fitting of nested-error model to bootstrap sample data
-    
-    fit.B<-lme(ys.B~x1s+x2s,random=~1|area,method="REML")
-    betaest.B<-fixed.effects(fit.B)
-    upred.B<-random.effects(fit.B)
-    sigmae2est.B<-fit.B$sigma^2    # Varianza residual
-    sigmau2est.B<-as.numeric(VarCorr(fit.B)[1,1]) # Matriz de covarianzas de las componentes aleatorias del modelo
-    
-    MSEpropsum.B<-MSEpropsum.B+(propfin.B-prop.B)^2
-    MSEgapsum.B<-MSEgapsum.B+(gapfin.B-gap.B)^2
-    
-  }
-}
-  
-  # Calculation of MSE
-
-  MSEpropMC.B[,i]<-MSEpropsum.B/B
-  MSEgapMC.B[,i]<-MSEgapsum.B/B
-  
-  for (d in 1:D){
-    MSEpropMC.Br[d]<-mean(MSEpropMC.B[d,])
-    MSEgapMC.Br[d]<-mean(MSEgapMC.B[d,])
-  }
 #########################################
 # Monte Carlo simulations
 #########################################
@@ -219,7 +135,7 @@ z<-12    # Poverty line: It is approximately 0.6 Median(E) for the whole populat
 # Monte Carlo iterations
 
 #nMC<-10000
-nMC<-2
+nMC<-100
 
 # Initialization of matrices that will contain poverty proportions and gaps
 # Each column is for the D area quantities for each Monte Carlo simulation
@@ -345,69 +261,69 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
   # EB and ELL poverty proportions and gaps for the areas
   ############################################################
   
-  L<-5
-  propsum<-rep(0,D)
-  gapsum<-rep(0,D)
-  propsum.ELL<-rep(0,D)
-  gapsum.ELL<-rep(0,D)
-  sumSqprop<-rep(0,D)
-  sumSqgap<-rep(0,D)
-  propsum.ART <- rep(0,D)
-  gapsum.ART <- rep(0,D)
-  propsum.New <- rep(0,D)
-  gapsum.New <- rep(0,D)
-  EBpropPred <- rep(0,D)
-  EBgapPred <- rep(0,D)
+  #L<-5
+  #propsum<-rep(0,D)
+  #gapsum<-rep(0,D)
+  #propsum.ELL<-rep(0,D)
+  #gapsum.ELL<-rep(0,D)
+  #sumSqprop<-rep(0,D)
+  #sumSqgap<-rep(0,D)
+  #propsum.ART <- rep(0,D)
+  #gapsum.ART <- rep(0,D)
+  #propsum.New <- rep(0,D)
+  #gapsum.New <- rep(0,D)
+  #EBpropPred <- rep(0,D)
+  #EBgapPred <- rep(0,D)
   
   
-  for (ell in 1:L){   ### Start of generations
+  #for (ell in 1:L){   ### Start of generations
     
-    sumNd<-0
+    #sumNd<-0
     
-    for (d in 1:D){
+    #for (d in 1:D){
       
       # Generation of census values from the distrib. given the sample data (Census EB prediction)
       
-      Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
-      mudpred<-Xd%*%matrix(betaest,nr=p,nc=1)+upred[d,1]
+      #Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
+      #mudpred<-Xd%*%matrix(betaest,nr=p,nc=1)+upred[d,1]
       
-      gammad<-sigmau2est/(sigmau2est+sigmae2est/nd[d])
-      sigmav2<-sigmau2est*(1-gammad)
-      vd<-rnorm(1,0,sqrt(sigmav2))
-      ed<-rnorm(Nd[d],0,sqrt(sigmae2est))
+      #gammad<-sigmau2est/(sigmau2est+sigmae2est/nd[d])
+      #sigmav2<-sigmau2est*(1-gammad)
+      #vd<-rnorm(1,0,sqrt(sigmav2))
+      #ed<-rnorm(Nd[d],0,sqrt(sigmae2est))
       
-      ydnew<-mudpred+vd+ed
-      Ednew<-exp(ydnew)
+      #ydnew<-mudpred+vd+ed
+      #Ednew<-exp(ydnew)
       
       # EB predictors of poverty measures for each generation
-      EBpropPred[d] <- mean(Ednew<z)
-      EBgapPred[d] <- mean((Ednew<z)*(z-Ednew)/z)
-      propsum[d]<-propsum[d]+mean(Ednew<z)
-      gapsum[d]<-gapsum[d]+mean((Ednew<z)*(z-Ednew)/z)
+      #EBpropPred[d] <- mean(Ednew<z)
+      #EBgapPred[d] <- mean((Ednew<z)*(z-Ednew)/z)
+      #propsum[d]<-propsum[d]+mean(Ednew<z)
+      #gapsum[d]<-gapsum[d]+mean((Ednew<z)*(z-Ednew)/z)
       
      
       # Generation of population values of y from the fitted model
       # (ELL method with clusters = areas), using parametric bootstrap
       # and without heteroscedasticity
       
-      ed.ELL<-ed
-      ud.ELL<-rnorm(1,0,sqrt(sigmau2est))
+      #ed.ELL<-ed
+      #ud.ELL<-rnorm(1,0,sqrt(sigmau2est))
       
-      mud.ELL<-Xd%*%matrix(betaest,nr=p,nc=1)
-      yd.ELL<-mud.ELL+ud.ELL+ed.ELL
-      Ed.ELL<-exp(yd.ELL)
+      #mud.ELL<-Xd%*%matrix(betaest,nr=p,nc=1)
+      #yd.ELL<-mud.ELL+ud.ELL+ed.ELL
+      #Ed.ELL<-exp(yd.ELL)
       
       # ELL predictors of poverty measures for each generation
       
-      propsum.ELL[d]<-propsum.ELL[d]+mean(Ed.ELL<z)
-      gapsum.ELL[d]<-gapsum.ELL[d]+mean((Ed.ELL<z)*(z-Ed.ELL)/z)
+      #propsum.ELL[d]<-propsum.ELL[d]+mean(Ed.ELL<z)
+      #gapsum.ELL[d]<-gapsum.ELL[d]+mean((Ed.ELL<z)*(z-Ed.ELL)/z)
       
       # For the calculation of ELL estimator of MSE
       
-      sumSqprop[d]<-sumSqprop[d]+(mean(Ed.ELL<z))^2
-      sumSqgap[d]<-sumSqgap[d]+(mean((Ed.ELL<z)*(z-Ed.ELL)/z))^2
+      #sumSqprop[d]<-sumSqprop[d]+(mean(Ed.ELL<z))^2
+      #sumSqgap[d]<-sumSqgap[d]+(mean((Ed.ELL<z)*(z-Ed.ELL)/z))^2
       
-      sumNd<-sumNd+Nd[d]
+      #sumNd<-sumNd+Nd[d]
       
       # New Ariticial EB
       

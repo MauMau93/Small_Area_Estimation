@@ -23,21 +23,21 @@ N<-20000        # Number of population units
 D<-80           # Number of areas
 Nd<-rep(250,D)      # Number of population units in each area
 p<-3            # Number of auxiliary variables (intercept+2 dummies)
-#p1<-rep(0,D)       # Probability of the first category of X1
-#x1<-NULL       # X1 values
-#p2<-rep(0,D)       # Probability of the second category of X2
-#x2<-NULL       # X2 values
+p1<-rep(0,D)       # Probability of the first category of X1
+x1<-NULL       # X1 values
+p2<-rep(0,D)       # Probability of the second category of X2
+x2<-NULL       # X2 values
 #
 ## Generation of auxiliary variables (2 dummies with probability of 1 given by p1 and p2)
 #
-#for (d in 1:D){
-#    p1[d]<-0.3+0.5*d/D
-#    p2[d]<-0.2
-#    x1<-c(x1,rbinom(Nd[d],size=1,prob=p1[d]))
-#    x2<-c(x2,rbinom(Nd[d],size=1,prob=p2[d]))
-#}
+for (d in 1:D){
+    p1[d]<-0.3+0.5*d/D
+    p2[d]<-0.2
+    x1<-c(x1,rbinom(Nd[d],size=1,prob=p1[d]))
+    x2<-c(x2,rbinom(Nd[d],size=1,prob=p2[d]))
+}
 #
-#write.table(data.frame(x1,x2),"AuxVarD80.txt")
+write.table(data.frame(x1,x2),"AuxVarD80.txt")
 x<-read.table("AuxVarD80.txt",header=TRUE)
 x1<-x[,1]
 x2<-x[,2]
@@ -53,14 +53,14 @@ n<-sum(nd)
 
 # Extraction of sample indexes
 
-#samp<-NULL
-#sumNd<-0
+samp<-NULL
+sumNd<-0
 
-#for (d in 1:D){
-#    samp<-c(samp,sample((sumNd+1):(sumNd+Nd[d]),size=nd[d],replace=FALSE))
-#    sumNd<-sumNd+Nd[d]
-#}
-#write.table(samp,"SampleD80.txt")
+for (d in 1:D){
+    samp<-c(samp,sample((sumNd+1):(sumNd+Nd[d]),size=nd[d],replace=FALSE))
+    sumNd<-sumNd+Nd[d]
+}
+write.table(samp,"SampleD80.txt")
 
 sample<-read.table("SampleD80.txt",header=TRUE)
 samp<-sample[,1]
@@ -116,8 +116,8 @@ z<-12    # Poverty line: It is approximately 0.6 Median(E) for the whole populat
 
 # Monte Carlo iterations
 
-nMC<-10000
-#nMC<-100
+#nMC<-10000
+nMC<-100
 
 # Initialization of matrices that will contain poverty proportions and gaps
 # Each column is for the D area quantities for each Monte Carlo simulation
@@ -132,6 +132,8 @@ propfinMC.ELL<-matrix(0,nr=D,nc=nMC)
 gapfinMC.ELL<-matrix(0,nr=D,nc=nMC)
 MSEpropMC.ELL<-matrix(0,nr=D,nc=nMC)
 MSEgapMC.ELL<-matrix(0,nr=D,nc=nMC)
+propfinMC.S <- matrix(0,nr=D,nc=nMC)
+gapfinMC.S <- matrix(0,nr=D,nc=nMC)
 
 time1<-Sys.time()
 time1
@@ -229,104 +231,148 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
   
   #*** Fitting of unit-context nested-error model to sample data, for UC-CEB
   
-  fit.uc<-lme(ys~X1s.mean+X2s.mean,random=~1|area,method="REML")
-  Xs.uc<-model.matrix(fit.uc)
-  betaest.uc<-fixed.effects(fit.uc)
-  upred.uc<-random.effects(fit.uc)
-  sigmae2est.uc<-fit.uc$sigma^2    # Varianza residual
-  sigmau2est.uc<-as.numeric(VarCorr(fit.uc)[1,1]) # Matriz de covarianzas de las componentes aleatorias del modelo
+  #fit.uc<-lme(ys~X1s.mean+X2s.mean,random=~1|area,method="REML")
+  #Xs.uc<-model.matrix(fit.uc)
+  #betaest.uc<-fixed.effects(fit.uc)
+  #upred.uc<-random.effects(fit.uc)
+  #sigmae2est.uc<-fit.uc$sigma^2    # Varianza residual
+  #sigmau2est.uc<-as.numeric(VarCorr(fit.uc)[1,1]) # Matriz de covarianzas de las componentes aleatorias del modelo
   
-  # *** Change the code below by analytical formulas if these formulas are available
+  #B<-500
+  B<-50
   
-  ############################################################
-  # Generation of census values and calculation of Census 
-  # EB and ELL poverty proportions and gaps for the areas
-  ############################################################
+  MSEpropsum.B<-rep(0,D)
+  MSEgapsum.B<-rep(0,D)
   
-  L<-50
-  propsum<-rep(0,D)
-  gapsum<-rep(0,D)
-  propsum.ELL<-rep(0,D)
-  gapsum.ELL<-rep(0,D)
-  sumSqprop<-rep(0,D)
-  sumSqgap<-rep(0,D)
-  
-  for (ell in 1:L){   ### Start of generations
+  for (b in 1:B){   ### Start of bootstrap cycle
     
+    #print(cbind("Bootstrap iteration",b,"Monte Carlo iteration",i))
+    
+    y.B<-NULL
+    ys.B<-NULL
+    ys.B2<-NULL
+    prop.B<-rep(0,D)
+    gap.B<-rep(0,D)
+    
+    sumnd<-0
+    sumrd<-0
     sumNd<-0
     
     for (d in 1:D){
       
-      # Generation of census values from the distrib. given the sample data (Census EB prediction)
+      # Generation of population values of y from the fitted model
+      # Parametric bootstrap for MSE estimation
+      
+      ed.B<-rnorm(Nd[d],0,sqrt(sigmae2est))
+      ud.B<-rnorm(1,0,sqrt(sigmau2est))
       
       Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
-      mudpred<-Xd%*%matrix(betaest,nr=p,nc=1)+upred[d,1]
+      mud.B<-Xd%*%matrix(betaest,nr=p,nc=1)
+      yd.B<-mud.B+ud.B+ed.B
+      y.B<-c(y.B,yd.B)
       
-      gammad<-sigmau2est/(sigmau2est+sigmae2est/nd[d])
-      sigmav2<-sigmau2est*(1-gammad)
-      vd<-rnorm(1,0,sqrt(sigmav2))
-      ed<-rnorm(Nd[d],0,sqrt(sigmae2est))
+      # True poverty measures for the bootstrap population
       
-      ydnew<-mudpred+vd+ed
-      Ednew<-exp(ydnew)
+      Ed.B<-exp(yd.B)
+      prop.B[d]<-mean(Ed.B<z)
+      gap.B[d]<-mean((Ed.B<z)*(z-Ed.B)/z)
       
-      # EB predictors of poverty measures for each generation
+      # Generate bootstrap sample values
+
+      Xsd<-Xs[(sumnd+1):(sumnd+nd[d]),]
+      musd.B<-Xsd%*%matrix(betaest,nr=p,nc=1)
+      esd.B<-rnorm(nd[d],0,sqrt(sigmae2est))
+      ysd.B<-musd.B+ud.B+esd.B
+      ys.B<-c(ys.B,ysd.B)
       
-      propsum[d]<-propsum[d]+mean(Ednew<z)
-      gapsum[d]<-gapsum[d]+mean((Ednew<z)*(z-Ednew)/z)
-      
-      # Generation of population values of y from the fitted model
-      # (ELL method with clusters = areas), using parametric bootstrap
-      # and without heteroscedasticity
-      
-      ed.ELL<-ed
-      ud.ELL<-rnorm(1,0,sqrt(sigmau2est))
-      
-      mud.ELL<-Xd%*%matrix(betaest,nr=p,nc=1)
-      yd.ELL<-mud.ELL+ud.ELL+ed.ELL
-      Ed.ELL<-exp(yd.ELL)
-      
-      # ELL predictors of poverty measures for each generation
-      
-      propsum.ELL[d]<-propsum.ELL[d]+mean(Ed.ELL<z)
-      gapsum.ELL[d]<-gapsum.ELL[d]+mean((Ed.ELL<z)*(z-Ed.ELL)/z)
-      
-      # For the calculation of ELL estimator of MSE
-      
-      sumSqprop[d]<-sumSqprop[d]+(mean(Ed.ELL<z))^2
-      sumSqgap[d]<-sumSqgap[d]+(mean((Ed.ELL<z)*(z-Ed.ELL)/z))^2
-      
+      sumnd<-sumnd+nd[d]
+      sumrd<-sumrd+rd[d]
       sumNd<-sumNd+Nd[d]
       
     }
     
-  }  # End of generations
+    E.B<-exp(y.B)
+    
+    # Bootstrap sample data
+    
+    Es.B<-exp(ys.B)
+    
+    # Fitting of nested-error model to bootstrap sample data
+    
+    fit.B<-lme(ys.B~x1s+x2s,random=~1|area,method="REML")
+    betaest.B<-fixed.effects(fit.B)
+    upred.B<-random.effects(fit.B)
+    sigmae2est.B<-fit.B$sigma^2    # Varianza residual
+    sigmau2est.B<-as.numeric(VarCorr(fit.B)[1,1]) # Matriz de covarianzas de las componentes aleatorias del modelo
+    
+    
+    # Alternative code using analytical formulas for Census EB predictors of poverty incidence and poverty gap
+    
+    propfin.B<-rep(0,D)
+    gapfin.B<-rep(0,D)
+    
+    sumNd<-0
+    
+    for (d in 1:D){
+      Xd<-cbind(rep(1,Nd[d]),x1[(sumNd+1):(sumNd+Nd[d])],x2[(sumNd+1):(sumNd+Nd[d])])
+      mudcond.B<-Xd%*%matrix(betaest.B,nr=p,nc=1)+upred.B[d,1]
+      gammad.B<-sigmau2est.B/(sigmau2est.B+sigmae2est.B/nd[d])
+      sigma2cond.B<-sigmau2est.B*(1-gammad.B)+sigmae2est.B
+      alphad.B<-(log(z)-mudcond.B)/sigma2cond.B  ## alphad is a vector because Xd is a matrix
+      propfin.B[d]<-mean(pnorm(alphad.B))
+      gapfin.B[d]<-mean( pnorm(alphad.B)*(1-(exp(mudcond.B+sigma2cond.B/2)*pnorm(alphad.B-sqrt(sigma2cond.B))/pnorm(alphad.B) )/z)  )
+      
+      sumNd<-sumNd+Nd[d]
+    }
+    
+    # Calculate the sums over each bootstrap to calculate the average between repetitions
+    
+    
+    MSEpropsum.B<-MSEpropsum.B+(propfin.B-prop.B)^2
+    MSEgapsum.B<-MSEgapsum.B+(gapfin.B-gap.B)^2
+    
+  }  # End of the bootstrap cycle
   
-  # EB predictors of poverty measures
+  # I save predictor values for each Monte Carlo simulation
+  # in the columns of a matrix
   
-  propfin<-propsum/L
-  gapfin<-gapsum/L
+  MSEpropMC.B[,i]<-MSEpropsum.B/B
+  MSEgapMC.B[,i]<-MSEgapsum.B/B
   
-  # ELL predictors of poverty measures and ELL mean squared error
+}   # End of Monte Carlo simulations
+
+time2 <- Sys.time()
+print(difftime(time2,time1,units="mins"))
+
+# Means over Monte Carlo simulations of true values, sample values,
+# EB and ELL predictors
+
+MSEpropMC.Br<-rep(0,D)
+MSEgapMC.Br<-rep(0,D)
+
+for (d in 1:D){
+  MSEpropMC.Br[d]<-mean(MSEpropMC.B[d,])
+  MSEgapMC.Br[d]<-mean(MSEgapMC.B[d,])
+}
+
   
-  propfin.ELL<-propsum.ELL/L
-  gapfin.ELL<-gapsum.ELL/L
   
-  MSEpropMC.ELL[,i]<-sumSqprop/L-propfin.ELL^2 #*** We don't neet it
-  MSEgapMC.ELL[,i]<-sumSqgap/L-gapfin.ELL^2  #*** We don't neet it
+  #########
   
-  #*** Change propfin and gapfin (also propfin.ELL and gapfin.ELL if we wish to obtain ELL estimators) in the code above by analytical formulas, if they are available.
   
-  #*** Alternative code using analytical formulas for Census EB (and ELL and Census EB using only the sample) predictors of poverty incidence and poverty gap
+  #MSEpropMC.ELL[,i]<-sumSqprop/L-propfin.ELL^2 #*** We don't neet it
+  #MSEgapMC.ELL[,i]<-sumSqgap/L-gapfin.ELL^2  #*** We don't neet it
   
+###############################
+
   propfin<-rep(0,D)
   gapfin<-rep(0,D)
   propfin.ELL<-rep(0,D)
   gapfin.ELL<-rep(0,D)
   propfin.S<-rep(0,D)
   gapfin.S<-rep(0,D)
-  propfin.uc<-rep(0,D)
-  gapfin.uc<-rep(0,D)
+  #propfin.uc<-rep(0,D)
+  #gapfin.uc<-rep(0,D)
   
   sumNd<-0
   sumnd<-0
@@ -352,19 +398,20 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
     #*** Survey EB (Census EB, based only on the sample values)
     Xsd<-Xs[(sumnd+1):(sumnd+nd[d]),]
     mucond.S<-Xsd%*%matrix(betaest,nr=p,nc=1)+upred[d,1]
-    alphad.S<-(log(z)-mudcond.S)/sigma2cond.S   # Now alphad.S is a vector of size nd[d]
+    sigma2cond.S <- sigma2cond
+    alphad.S<-(log(z)-mucond.S)/sigma2cond.S   # Now alphad.S is a vector of size nd[d]
     propfin.S[d]<-mean(pnorm(alphad.S))  # Now is the sample mean (equal to the weighted sample mean with weights Nd[d]/nd[d])
-    gapfin.S[d]<-mean( pnorm(alphad.S)*(1-(exp(mudcond.S+sigma2cond/2)*pnorm(alphad.S-sqrt(sigma2cond))/pnorm(alphad.S) )/z)  )
+    gapfin.S[d]<-mean( pnorm(alphad.S)*(1-(exp(mucond.S+sigma2cond/2)*pnorm(alphad.S-sqrt(sigma2cond))/pnorm(alphad.S) )/z)  )
     
     #*** UC-CEB
     
-    Xsd.uc<-matrix(c(1,x1.mean[d],x2.mean[d]),nr=1,nc=p)
-    mucond.uc<-Xsd.uc%*%matrix(betaest,nr=p,nc=1)+upred.uc[d,1]
-    gammad.uc<-sigmau2est.uc/(sigmau2est.uc+sigmae2est.uc/nd[d])
-    sigma2cond.uc<-sigmau2est.uc*(1-gammad.uc)+sigmae2est.uc
-    alphad.uc<-(log(z)-mudcond.uc)/sigma2cond.uc   # Now alphad.uc is a scalar
-    propfin.uc[d]<-pnorm(alphad.uc)  # Now all the elements in the sum for the area are equal
-    gapfin.uc[d]<-pnorm(alphad.uc)*(1-(exp(mudcond.uc+sigma2cond.uc/2)*pnorm(alphad.uc-sqrt(sigma2cond.uc))/pnorm(alphad.uc) )/z)  
+    #Xsd.uc<-matrix(c(1,x1.mean[d],x2.mean[d]),nr=1,nc=p)
+    #mucond.uc<-Xsd.uc%*%matrix(betaest,nr=p,nc=1)+upred.uc[d,1]
+    #gammad.uc<-sigmau2est.uc/(sigmau2est.uc+sigmae2est.uc/nd[d])
+    #sigma2cond.uc<-sigmau2est.uc*(1-gammad.uc)+sigmae2est.uc
+    #alphad.uc<-(log(z)-mudcond.uc)/sigma2cond.uc   # Now alphad.uc is a scalar
+    #propfin.uc[d]<-pnorm(alphad.uc)  # Now all the elements in the sum for the area are equal
+    #gapfin.uc[d]<-pnorm(alphad.uc)*(1-(exp(mudcond.uc+sigma2cond.uc/2)*pnorm(alphad.uc-sqrt(sigma2cond.uc))/pnorm(alphad.uc) )/z)  
     
     sumNd<-sumNd+Nd[d]
     sumnd<-sumnd+nd[d]
@@ -380,10 +427,14 @@ for (i in 1:nMC){  # Start of Monte Carlo cycle: Generation of populations and c
   propfinMC[,i]<-propfin
   gapfinMC[,i]<-gapfin
   propfinMC.ELL[,i]<-propfin.ELL 
-  gapfinMC.ELL[,i]<-gapfin.ELL 
+  gapfinMC.ELL[,i]<-gapfin.ELL
+  propfinMC.S[,i]<- propfin.S 
+  gapfinMC.S[,i]<- gapfin.S
+  #propfinMC.uc[,i]<- propfin.uc
+  #gapfinMC.uc[,i]<- gapfin.uc
   
-  #*** Add propfinMC.S, gapfinMC.S, propfinMC.uc and gapfinMC.uc
-  
+
+
 }   # End of Monte Carlo simulations
 
 time2 <- Sys.time()
@@ -396,17 +447,24 @@ EmpiricalMSEpropPre<-rep(0,D)
 EmpiricalMSEgapPre<-rep(0,D)
 EmpiricalMSEpropPre.ELL<-rep(0,D)
 EmpiricalMSEgapPre.ELL<-rep(0,D)
-MSEpropMCr.ELL<-rep(0,D)
+EmpiricalMSEpropPre.S <-rep(0,D)
+EmpiricalMSEgapPre.S <-rep(0,D)
+EmpiricalMSEpropPre.uc <-rep(0,D)
+EmpiricalMSEgapPre.uc <-rep(0,D)
+MSEpropMCr.ELL<-rep(0,D) 
 MSEgapMCr.ELL<-rep(0,D)
 
-for (d in 1:D){
-  EmpiricalMSEpropPre[d]<-mean((propfinMC[d,]-propMC[d,])^2)
-  EmpiricalMSEgapPre[d]<-mean((gapfinMC[d,]-gapMC[d,])^2)
-  EmpiricalMSEpropPre.ELL[d]<-mean((propfinMC.ELL[d,]-propMC[d,])^2)
-  EmpiricalMSEgapPre.ELL[d]<-mean((gapfinMC.ELL[d,]-gapMC[d,])^2)
-  MSEpropMCr.ELL[d]<-mean(MSEpropMC.ELL[d,])
-  MSEgapMCr.ELL[d]<-mean(MSEgapMC.ELL[d,])
-}
 
-EmpiricalMSEPre<-data.frame(EmpiricalMSEpropPre,EmpiricalMSEgapPre,EmpiricalMSEpropPre.ELL,EmpiricalMSEgapPre.ELL,MSEpropMCr.ELL,MSEgapMCr.ELL)
+#for (d in 1:D){
+#  EmpiricalMSEpropPre[d]<-mean((propfinMC[d,]-propMC[d,])^2)
+#  EmpiricalMSEgapPre[d]<-mean((gapfinMC[d,]-gapMC[d,])^2)
+#  EmpiricalMSEpropPre.ELL[d]<-mean((propfinMC.ELL[d,]-propMC[d,])^2)
+#  EmpiricalMSEgapPre.ELL[d]<-mean((gapfinMC.ELL[d,]-gapMC[d,])^2)
+#  EmpiricalMSEpropPre.S[d] <- mean((propfinMC.S[d,]-propMC[d,])^2)
+#  EmpiricalMSEgapPre.S[d] <- mean((gapfinMC.S[d,]-gapMC[d,])^2)
+#  MSEpropMCr.ELL[d]<-mean(MSEpropMC.ELL[d,])
+#  MSEgapMCr.ELL[d]<-mean(MSEgapMC.ELL[d,])
+#}
+
+EmpiricalMSEPre<-data.frame(EmpiricalMSEpropPre.S,EmpiricalMSEgapPre.S,EmpiricalMSEpropPre,EmpiricalMSEgapPre,EmpiricalMSEpropPre.ELL,EmpiricalMSEgapPre.ELL,MSEpropMCr.ELL,MSEgapMCr.ELL)
 write.table(EmpiricalMSEPre,"EmpiricalD80MC10000_Modified.txt",row.names=F)
