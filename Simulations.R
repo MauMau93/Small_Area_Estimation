@@ -1,7 +1,6 @@
 ##################################################################################
 
 #Integrating Census and Survey Information for Small Area Estimation
-# This is a moderate scenario, where the antiquated census becomes antiquated.
 
 ##################################################################################
 
